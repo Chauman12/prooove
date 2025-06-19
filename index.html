@@ -14,6 +14,7 @@
             --light-gray: #f0f2f5;
             --border-color: #dcdcdc;
             --text-color: #1c1c1e;
+            --line-color: #555;
         }
 
         body {
@@ -66,7 +67,15 @@
             pointer-events: none;
         }
 
-        .connection-line { stroke: #8a8a8e; stroke-width: 3px; stroke-linecap: round; transition: stroke 0.2s; }
+        .connection-line {
+            stroke: var(--line-color);
+            stroke-width: 2px;
+            transition: stroke 0.2s;
+        }
+        
+        #arrowhead {
+            fill: var(--line-color);
+        }
 
         .node {
             position: absolute;
@@ -140,7 +149,14 @@
     
     <div id="canvas-container">
         <div id="viewport">
-            <svg id="svg-layer"></svg>
+            <svg id="svg-layer">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                    refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" />
+                    </marker>
+                </defs>
+            </svg>
         </div>
     </div>
     
@@ -248,6 +264,7 @@
             tempLine.setAttribute('x2', startPos.x); tempLine.setAttribute('y2', startPos.y);
             tempLine.setAttribute('class', 'connection-line');
             tempLine.style.strokeDasharray = '5, 5';
+            tempLine.setAttribute('marker-end', 'url(#arrowhead)');
             svgLayer.appendChild(tempLine);
             viewport.addEventListener('mousemove', followCursorWithTransform);
         }
@@ -273,6 +290,8 @@
             
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('class', 'connection-line');
+            line.setAttribute('marker-end', 'url(#arrowhead)');
+            
             const startPos = getCenter(startNode), endPos = getCenter(endNode);
             line.setAttribute('x1', startPos.x); line.setAttribute('y1', startPos.y);
             line.setAttribute('x2', endPos.x); line.setAttribute('y2', endPos.y);
@@ -322,70 +341,68 @@
             nodeElement.id = `node-${Date.now()}`;
             nodeElement.innerHTML = `<div class="node-image-placeholder">Subir foto</div><span class="node-label">${label}</span>`;
             
-            // --- NEW, ROBUST CLICK/DBLCLICK/DRAG HANDLING ---
+            let isDragging = false;
             let clickCount = 0;
             let clickTimer = null;
-            let isDragging = false;
-            let dragStartPos = { x: 0, y: 0 };
             
             nodeElement.addEventListener('mousedown', (e) => {
                 e.stopPropagation();
-                isDragging = false;
-                dragStartPos.x = e.clientX;
-                dragStartPos.y = e.clientY;
-
-                const activeNode = nodeElement;
-                const offset = { 
-                    x: e.clientX - activeNode.offsetLeft * zoom, 
-                    y: e.clientY - activeNode.offsetTop * zoom
+                let wasDragging = false;
+                const dragThreshold = 5;
+                const startPos = { x: e.clientX, y: e.clientY };
+                
+                const initialNodePos = {
+                    left: nodeElement.offsetLeft,
+                    top: nodeElement.offsetTop
                 };
 
-                function dragMove(e_move) {
-                    const dx = e_move.clientX - dragStartPos.x;
-                    const dy = e_move.clientY - dragStartPos.y;
-                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-                        isDragging = true;
+                function onMouseMove(moveEvent) {
+                    const dx = moveEvent.clientX - startPos.x;
+                    const dy = moveEvent.clientY - startPos.y;
+                    
+                    if (Math.abs(dx) > dragThreshold || Math.abs(dy) > dragThreshold) {
+                        wasDragging = true;
+                        nodeElement.classList.add('is-dragging');
                     }
-                    if (isDragging) {
-                        activeNode.classList.add('is-dragging');
-                        const worldPos = screenToWorld({x: e_move.clientX, y: e_move.clientY});
-                        let newX = worldPos.x - (offset.x - pan.x)/zoom;
-                        let newY = worldPos.y - (offset.y - pan.y)/zoom;
-                        
-                        activeNode.style.left = `${newX}px`;
-                        activeNode.style.top = `${newY}px`;
-                        updateConnectionsForNode(activeNode);
-                    }
-                }
-
-                function stopDrag() {
-                    document.removeEventListener('mousemove', dragMove);
-                    document.removeEventListener('mouseup', stopDrag);
-                    if(isDragging) {
-                        activeNode.classList.remove('is-dragging');
+                    
+                    if(wasDragging) {
+                        const newX = initialNodePos.left + dx / zoom;
+                        const newY = initialNodePos.top + dy / zoom;
+                        nodeElement.style.left = `${newX}px`;
+                        nodeElement.style.top = `${newY}px`;
+                        updateConnectionsForNode(nodeElement);
                     }
                 }
 
-                document.addEventListener('mousemove', dragMove);
-                document.addEventListener('mouseup', stopDrag, { once: true });
-            });
+                function onMouseUp() {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                    
+                    nodeElement.classList.remove('is-dragging');
+                    
+                    if (wasDragging) return;
 
-            nodeElement.addEventListener('click', (e) => {
-                if(isDragging) return;
-                clickCount++;
-                
-                if (clickCount === 1) {
-                    clickTimer = setTimeout(() => {
+                    // Handle click/dblclick
+                    clickCount++;
+                    if (clickCount === 1) {
+                        clickTimer = setTimeout(() => {
+                            clickCount = 0;
+                            // This is a single click
+                            if (!isConnecting) {
+                                selectedNodeForImage = nodeElement;
+                                imageUploadInput.click();
+                            }
+                        }, 250);
+                    } else if (clickCount === 2) {
+                        clearTimeout(clickTimer);
                         clickCount = 0;
-                        if (isConnecting) return;
-                        selectedNodeForImage = nodeElement;
-                        imageUploadInput.click();
-                    }, 250);
-                } else if (clickCount === 2) {
-                    clearTimeout(clickTimer);
-                    clickCount = 0;
-                    onNodeDoubleClick(nodeElement);
+                        // This is a double click
+                        onNodeDoubleClick(nodeElement);
+                    }
                 }
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp, { once: true });
             });
 
             viewport.appendChild(nodeElement);
