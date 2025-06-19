@@ -89,7 +89,7 @@
         .node.selected-for-connection { border-color: var(--primary-blue); box-shadow: 0 0 15px rgba(0, 122, 255, 0.5); }
 
         .node-image, .node-image-placeholder { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; pointer-events: none; border: 2px solid rgba(0,0,0,0.05); }
-        .node-image-placeholder { background: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #6c757d; cursor: pointer; }
+        .node-image-placeholder { background: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #6c757d; }
 
         .node-label { font-size: 14px; font-weight: 600; pointer-events: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -175,8 +175,8 @@
         let nodes = new Map();
         let connections = new Set();
         let selectedNodeForImage = null;
+        let mainSubSkillNode = null;
         let isConnecting = false, connectionStartNode = null, tempLine = null;
-        let activeNode = null, offset = { x: 0, y: 0 }, isDraggingNode = false;
         
         let pan = { x: 0, y: 0 }, zoom = 1, isPanning = false, panStart = { x: 0, y: 0 };
         
@@ -212,26 +212,6 @@
         });
         canvas.addEventListener('dblclick', () => { if (isConnecting) cancelConnection(); });
 
-        function startDrag(e, nodeElement) {
-            e.stopPropagation();
-            isDraggingNode = false; activeNode = nodeElement;
-            const event = e.touches ? e.touches[0] : e;
-            const worldPos = screenToWorld({x: event.clientX, y: event.clientY});
-            offset.x = worldPos.x - parseFloat(activeNode.style.left || 0);
-            offset.y = worldPos.y - parseFloat(activeNode.style.top || 0);
-            setTimeout(() => { if(activeNode) { isDraggingNode = true; activeNode.classList.add('is-dragging'); } }, 150);
-        }
-        function drag(e) {
-            if (!isDraggingNode || !activeNode) return;
-            e.preventDefault();
-            const event = e.touches ? e.touches[0] : e;
-            const worldPos = screenToWorld({x: event.clientX, y: event.clientY});
-            activeNode.style.left = `${worldPos.x - offset.x}px`;
-            activeNode.style.top = `${worldPos.y - offset.y}px`;
-            updateConnectionsForNode(activeNode);
-        }
-        function stopDrag() { if (activeNode) activeNode.classList.remove('is-dragging'); activeNode = null; setTimeout(() => isDraggingNode = false, 50); }
-
         function getCenter(nodeElement) { return { x: nodeElement.offsetLeft + nodeElement.offsetWidth / 2, y: nodeElement.offsetTop + nodeElement.offsetHeight / 2 }; }
         function getNodeType(nodeElement) {
             if (nodeElement.classList.contains('subskill')) return 'subskill';
@@ -246,8 +226,6 @@
         }
         
         function onNodeDoubleClick(nodeElement) {
-            if (isDraggingNode) return;
-
             if (!isConnecting) {
                 const startType = getNodeType(nodeElement);
                 if (startType === 'secondary-skill') {
@@ -256,7 +234,7 @@
                 }
                 startConnectionMode(nodeElement);
             } else { 
-                createConnection(nodeElement);
+                connectNodes(connectionStartNode, nodeElement);
             }
         }
         
@@ -273,28 +251,29 @@
             svgLayer.appendChild(tempLine);
             viewport.addEventListener('mousemove', followCursorWithTransform);
         }
-
-        function createConnection(endNodeElement) {
-            const startType = getNodeType(connectionStartNode);
-            const endType = getNodeType(endNodeElement);
+        
+        function connectNodes(startNode, endNode) {
+            const startType = getNodeType(startNode);
+            const endType = getNodeType(endNode);
             const isValid = (startType === 'subskill' && endType === 'secondary-skill') || (startType === 'fixed-skill' && endType === 'secondary-skill');
             
-            if (!isValid || endNodeElement === connectionStartNode) {
-                if (tempLine) {
+            if (!isValid || endNode === startNode) {
+                if (isConnecting && tempLine) {
                     tempLine.style.stroke = 'var(--primary-red)';
                     setTimeout(() => cancelConnection(), 300);
-                } else {
-                    cancelConnection();
                 }
                 return;
             }
             
-            const fromId = connectionStartNode.id, toId = endNodeElement.id;
-            if (connections.has(`${fromId}-${toId}`) || connections.has(`${toId}-${fromId}`)) { cancelConnection(); return; }
+            const fromId = startNode.id, toId = endNode.id;
+            if (connections.has(`${fromId}-${toId}`) || connections.has(`${toId}-${fromId}`)) {
+                cancelConnection();
+                return;
+            }
             
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('class', 'connection-line');
-            const startPos = getCenter(connectionStartNode), endPos = getCenter(endNodeElement);
+            const startPos = getCenter(startNode), endPos = getCenter(endNode);
             line.setAttribute('x1', startPos.x); line.setAttribute('y1', startPos.y);
             line.setAttribute('x2', endPos.x); line.setAttribute('y2', endPos.y);
             svgLayer.appendChild(line);
@@ -303,7 +282,10 @@
             nodes.get(fromId).connections.push(connInfo);
             nodes.get(toId).connections.push(connInfo);
             connections.add(`${fromId}-${toId}`);
-            cancelConnection();
+            
+            if (isConnecting) {
+                cancelConnection();
+            }
         }
 
         function cancelConnection() {
@@ -340,32 +322,75 @@
             nodeElement.id = `node-${Date.now()}`;
             nodeElement.innerHTML = `<div class="node-image-placeholder">Subir foto</div><span class="node-label">${label}</span>`;
             
+            // --- NEW, ROBUST CLICK/DBLCLICK/DRAG HANDLING ---
+            let clickCount = 0;
             let clickTimer = null;
-
-            nodeElement.addEventListener('mousedown', (e) => startDrag(e, nodeElement));
+            let isDragging = false;
+            let dragStartPos = { x: 0, y: 0 };
             
-            // CORRECTED CLICK/DBLCLICK LOGIC
-            nodeElement.addEventListener('click', () => {
-                // A small delay ensures the isDraggingNode flag is set correctly
-                setTimeout(() => {
-                    if (isDraggingNode || isConnecting) return;
+            nodeElement.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                isDragging = false;
+                dragStartPos.x = e.clientX;
+                dragStartPos.y = e.clientY;
 
-                    // Set a timer. If it's not cancelled by a double click, it's a single click.
+                const activeNode = nodeElement;
+                const offset = { 
+                    x: e.clientX - activeNode.offsetLeft * zoom, 
+                    y: e.clientY - activeNode.offsetTop * zoom
+                };
+
+                function dragMove(e_move) {
+                    const dx = e_move.clientX - dragStartPos.x;
+                    const dy = e_move.clientY - dragStartPos.y;
+                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                        isDragging = true;
+                    }
+                    if (isDragging) {
+                        activeNode.classList.add('is-dragging');
+                        const worldPos = screenToWorld({x: e_move.clientX, y: e_move.clientY});
+                        let newX = worldPos.x - (offset.x - pan.x)/zoom;
+                        let newY = worldPos.y - (offset.y - pan.y)/zoom;
+                        
+                        activeNode.style.left = `${newX}px`;
+                        activeNode.style.top = `${newY}px`;
+                        updateConnectionsForNode(activeNode);
+                    }
+                }
+
+                function stopDrag() {
+                    document.removeEventListener('mousemove', dragMove);
+                    document.removeEventListener('mouseup', stopDrag);
+                    if(isDragging) {
+                        activeNode.classList.remove('is-dragging');
+                    }
+                }
+
+                document.addEventListener('mousemove', dragMove);
+                document.addEventListener('mouseup', stopDrag, { once: true });
+            });
+
+            nodeElement.addEventListener('click', (e) => {
+                if(isDragging) return;
+                clickCount++;
+                
+                if (clickCount === 1) {
                     clickTimer = setTimeout(() => {
+                        clickCount = 0;
+                        if (isConnecting) return;
                         selectedNodeForImage = nodeElement;
                         imageUploadInput.click();
-                    }, 200);
-                }, 50);
+                    }, 250);
+                } else if (clickCount === 2) {
+                    clearTimeout(clickTimer);
+                    clickCount = 0;
+                    onNodeDoubleClick(nodeElement);
+                }
             });
 
-            nodeElement.addEventListener('dblclick', (e) => {
-                e.stopPropagation();
-                clearTimeout(clickTimer); // Cancel the pending single click
-                onNodeDoubleClick(nodeElement); // Handle connection logic
-            });
-            
             viewport.appendChild(nodeElement);
             nodes.set(nodeElement.id, { element: nodeElement, connections: [] });
+            return nodeElement;
         }
         
         function askNodeName(title, placeholder) {
@@ -383,16 +408,22 @@
             const label = await askNodeName("Añadir Sub-Habilidad Principal", "Ej: Ajedrez");
             if (label) {
                 const worldCenter = screenToWorld({x: canvas.clientWidth/2, y: canvas.clientHeight/2});
-                createNode('subskill', label, worldCenter.x - 65, worldCenter.y - 65);
+                const newNode = createNode('subskill', label, worldCenter.x - 65, worldCenter.y - 65);
+                mainSubSkillNode = newNode;
                 addSubskillBtn.disabled = true;
             }
         });
 
         addSecondarySkillBtn.addEventListener('click', async () => {
+            if (!mainSubSkillNode) {
+                alert("Por favor, primero agrega una Sub-Habilidad Principal.");
+                return;
+            }
             const label = await askNodeName("Añadir Habilidad Secundaria", "Ej: Concentración");
             if (label) {
                 const worldCenter = screenToWorld({x: canvas.clientWidth/2, y: canvas.clientHeight/2});
-                createNode('secondary-skill', label, worldCenter.x - 65, worldCenter.y);
+                const newNode = createNode('secondary-skill', label, worldCenter.x - 65, worldCenter.y);
+                connectNodes(mainSubSkillNode, newNode);
             }
         });
         
@@ -410,8 +441,6 @@
             reader.readAsDataURL(event.target.files[0]);
         });
         
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDrag);
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cancelConnection(); });
         
         function initializeFixedNodes() {
