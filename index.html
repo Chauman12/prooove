@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profundización de Habilidades</title>
+
+    <!-- ================== CSS ================== -->
+    <style>
+        :root {
+            --primary-blue: #007aff;
+            --primary-green: #34c759;
+            --primary-red: #ff3b30;
+            --light-gray: #f0f2f5;
+            --border-color: #dcdcdc;
+            --text-color: #1c1c1e;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--light-gray);
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        header {
+            background-color: #ffffff;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+            z-index: 20;
+            position: relative;
+        }
+
+        header h1 { margin: 0; font-size: 1.75rem; color: #000; }
+        header p { margin: 0.25rem 0 0; color: #6c757d; }
+
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: calc(100vh - 160px); 
+            background-color: #f5f5f5;
+            overflow: hidden;
+            cursor: grab;
+        }
+        #canvas-container:active { cursor: grabbing; }
+        
+        #viewport {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #fafafa 20px, transparent 1%) center, linear-gradient(#fafafa 20px, transparent 1%) center;
+            background-size: 22px 22px;
+            transform-origin: 0 0;
+        }
+        
+        #svg-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .connection-line { stroke: #8a8a8e; stroke-width: 3px; stroke-linecap: round; transition: stroke 0.2s; }
+
+        .node {
+            position: absolute;
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background-color: #ffffff;
+            border: 3px solid #ccc;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center; padding: 10px;
+            box-sizing: border-box; cursor: grab;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, outline 0.2s ease;
+            user-select: none;
+            outline: 3px solid transparent; /* Para la animación de error */
+        }
+        
+        .node.is-dragging { cursor: grabbing; transform: scale(1.05); box-shadow: 0 8px 20px rgba(0,0,0,0.15); z-index: 10; }
+        .node.selected-for-connection { border-color: var(--primary-blue); box-shadow: 0 0 15px rgba(0, 122, 255, 0.5); }
+
+        .node-image, .node-image-placeholder { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; pointer-events: none; border: 2px solid rgba(0,0,0,0.05); }
+        .node-image-placeholder { background: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #6c757d; cursor: pointer; }
+
+        .node-label { font-size: 14px; font-weight: 600; pointer-events: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .node.subskill { background-color: #d1e7dd; border-color: #a3cfbb; }
+        .node.secondary-skill { background-color: #cff4fc; border-color: #9eeaf9; }
+        .node.fixed-skill { background-color: #fff3cd; border-color: #ffe69c; width: 140px; height: 140px; }
+
+        #controls {
+            padding: 1rem; background-color: #ffffff;
+            text-align: center; display: flex; justify-content: center;
+            gap: 1rem; border-top: 1px solid var(--border-color);
+            position: relative; z-index: 20;
+        }
+
+        #controls button { padding: 12px 25px; font-size: 16px; font-weight: 500; cursor: pointer; border: none; color: white; border-radius: 8px; transition: background-color 0.2s, transform 0.1s; }
+        #add-subskill-btn { background-color: var(--primary-green); }
+        #add-subskill-btn:hover { background-color: #2ca349; }
+        #add-secondary-skill-btn { background-color: var(--primary-blue); }
+        #add-secondary-skill-btn:hover { background-color: #0056b3; }
+        #controls button:active { transform: scale(0.98); }
+        #controls button:disabled { background-color: #aeb0b3; cursor: not-allowed; }
+
+        #controls input[type="file"] { display: none; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: 90%; max-width: 400px; text-align: center; }
+        .modal-content h2 { margin-top: 0; }
+        .modal-content input { width: 100%; padding: 10px; margin-top: 1rem; margin-bottom: 1.5rem; border: 1px solid #ccc; border-radius: 5px; font-size: 1rem; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 1rem; }
+        .modal-buttons button { padding: 10px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: 500;}
+        #modal-confirm { background: var(--primary-blue); color: white; }
+        #modal-cancel { background: #e5e5ea; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Mapa de Profundización</h1>
+        <p>Arrastra el fondo para moverte. Rueda del ratón para zoom. Doble clic para conectar.</p>
+    </header>
+
+    <div id="controls">
+        <input type="file" id="image-upload-input" accept="image/*">
+        <button id="add-subskill-btn">Agregar Sub-Habilidad Principal</button>
+        <button id="add-secondary-skill-btn">Agregar Habilidad Secundaria</button>
+    </div>
+    
+    <div id="canvas-container">
+        <div id="viewport">
+            <svg id="svg-layer"></svg>
+        </div>
+    </div>
+    
+    <div id="node-name-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-title"></h2>
+            <input type="text" id="modal-input" placeholder="Escribe aquí...">
+            <div class="modal-buttons">
+                <button id="modal-cancel">Cancelar</button>
+                <button id="modal-confirm">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================== JAVASCRIPT ================== -->
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const canvas = document.getElementById('canvas-container');
+        const viewport = document.getElementById('viewport');
+        const svgLayer = document.getElementById('svg-layer');
+        const addSubskillBtn = document.getElementById('add-subskill-btn');
+        const addSecondarySkillBtn = document.getElementById('add-secondary-skill-btn');
+        const imageUploadInput = document.getElementById('image-upload-input');
+        
+        const modal = document.getElementById('node-name-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalInput = document.getElementById('modal-input');
+        const modalConfirm = document.getElementById('modal-confirm');
+        const modalCancel = document.getElementById('modal-cancel');
+        let modalResolve = null;
+
+        let nodes = new Map();
+        let connections = new Set();
+        let selectedNodeForImage = null;
+        let isConnecting = false, connectionStartNode = null, tempLine = null;
+        let activeNode = null, offset = { x: 0, y: 0 }, isDraggingNode = false;
+        
+        let pan = { x: 0, y: 0 }, zoom = 1, isPanning = false, panStart = { x: 0, y: 0 };
+        
+        function updateView() { viewport.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`; }
+        function screenToWorld({ x, y }) {
+            const canvasRect = canvas.getBoundingClientRect();
+            return {
+                x: (x - canvasRect.left - pan.x) / zoom,
+                y: (y - canvasRect.top - pan.y) / zoom
+            };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.target === canvas || e.target === viewport) {
+                isPanning = true;
+                panStart.x = e.clientX - pan.x;
+                panStart.y = e.clientY - pan.y;
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+        canvas.addEventListener('mousemove', (e) => { if (isPanning) { pan.x = e.clientX - panStart.x; pan.y = e.clientY - panStart.y; updateView(); } });
+        window.addEventListener('mouseup', () => { if (isPanning) { isPanning = false; canvas.style.cursor = 'grab'; } });
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const minZoom = 0.2, maxZoom = 2.5;
+            const worldPos = screenToWorld({ x: e.clientX, y: e.clientY });
+            const zoomFactor = -e.deltaY * 0.001;
+            const newZoom = Math.max(minZoom, Math.min(maxZoom, zoom + zoomFactor));
+            pan.x += worldPos.x * (zoom - newZoom);
+            pan.y += worldPos.y * (zoom - newZoom);
+            zoom = newZoom;
+            updateView();
+        });
+        canvas.addEventListener('dblclick', () => { if (isConnecting) cancelConnection(); });
+
+        function startDrag(e, nodeElement) {
+            e.stopPropagation();
+            isDraggingNode = false; activeNode = nodeElement;
+            const event = e.touches ? e.touches[0] : e;
+            const worldPos = screenToWorld({x: event.clientX, y: event.clientY});
+            offset.x = worldPos.x - parseFloat(activeNode.style.left || 0);
+            offset.y = worldPos.y - parseFloat(activeNode.style.top || 0);
+            setTimeout(() => { if(activeNode) { isDraggingNode = true; activeNode.classList.add('is-dragging'); } }, 150);
+        }
+        function drag(e) {
+            if (!isDraggingNode || !activeNode) return;
+            e.preventDefault();
+            const event = e.touches ? e.touches[0] : e;
+            const worldPos = screenToWorld({x: event.clientX, y: event.clientY});
+            activeNode.style.left = `${worldPos.x - offset.x}px`;
+            activeNode.style.top = `${worldPos.y - offset.y}px`;
+            updateConnectionsForNode(activeNode);
+        }
+        function stopDrag() { if (activeNode) activeNode.classList.remove('is-dragging'); activeNode = null; setTimeout(() => isDraggingNode = false, 50); }
+
+        function getCenter(nodeElement) { return { x: nodeElement.offsetLeft + nodeElement.offsetWidth / 2, y: nodeElement.offsetTop + nodeElement.offsetHeight / 2 }; }
+        function getNodeType(nodeElement) {
+            if (nodeElement.classList.contains('subskill')) return 'subskill';
+            if (nodeElement.classList.contains('secondary-skill')) return 'secondary-skill';
+            if (nodeElement.classList.contains('fixed-skill')) return 'fixed-skill';
+            return null;
+        }
+
+        function flashNodeError(nodeElement) {
+            nodeElement.style.outlineColor = 'var(--primary-red)';
+            setTimeout(() => { nodeElement.style.outlineColor = 'transparent'; }, 400);
+        }
+        
+        function onNodeDoubleClick(nodeElement) {
+            if (isDraggingNode) return;
+
+            if (!isConnecting) {
+                const startType = getNodeType(nodeElement);
+                if (startType === 'secondary-skill') {
+                    flashNodeError(nodeElement);
+                    return;
+                }
+                startConnectionMode(nodeElement);
+            } else { 
+                createConnection(nodeElement);
+            }
+        }
+        
+        function startConnectionMode(nodeElement) {
+            isConnecting = true;
+            connectionStartNode = nodeElement;
+            connectionStartNode.classList.add('selected-for-connection');
+            const startPos = getCenter(connectionStartNode);
+            tempLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            tempLine.setAttribute('x1', startPos.x); tempLine.setAttribute('y1', startPos.y);
+            tempLine.setAttribute('x2', startPos.x); tempLine.setAttribute('y2', startPos.y);
+            tempLine.setAttribute('class', 'connection-line');
+            tempLine.style.strokeDasharray = '5, 5';
+            svgLayer.appendChild(tempLine);
+            viewport.addEventListener('mousemove', followCursorWithTransform);
+        }
+
+        function createConnection(endNodeElement) {
+            const startType = getNodeType(connectionStartNode);
+            const endType = getNodeType(endNodeElement);
+            const isValid = (startType === 'subskill' && endType === 'secondary-skill') || (startType === 'fixed-skill' && endType === 'secondary-skill');
+            
+            if (!isValid || endNodeElement === connectionStartNode) {
+                if (tempLine) {
+                    tempLine.style.stroke = 'var(--primary-red)';
+                    setTimeout(() => cancelConnection(), 300);
+                } else {
+                    cancelConnection();
+                }
+                return;
+            }
+            
+            const fromId = connectionStartNode.id, toId = endNodeElement.id;
+            if (connections.has(`${fromId}-${toId}`) || connections.has(`${toId}-${fromId}`)) { cancelConnection(); return; }
+            
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('class', 'connection-line');
+            const startPos = getCenter(connectionStartNode), endPos = getCenter(endNodeElement);
+            line.setAttribute('x1', startPos.x); line.setAttribute('y1', startPos.y);
+            line.setAttribute('x2', endPos.x); line.setAttribute('y2', endPos.y);
+            svgLayer.appendChild(line);
+
+            const connInfo = { from: fromId, to: toId, line: line };
+            nodes.get(fromId).connections.push(connInfo);
+            nodes.get(toId).connections.push(connInfo);
+            connections.add(`${fromId}-${toId}`);
+            cancelConnection();
+        }
+
+        function cancelConnection() {
+            isConnecting = false;
+            if (connectionStartNode) connectionStartNode.classList.remove('selected-for-connection');
+            connectionStartNode = null;
+            if (tempLine) tempLine.remove();
+            tempLine = null;
+            viewport.removeEventListener('mousemove', followCursorWithTransform);
+        }
+
+        function followCursorWithTransform(e) {
+            if (!isConnecting || !tempLine) return;
+            const worldPos = screenToWorld({ x: e.clientX, y: e.clientY });
+            tempLine.setAttribute('x2', worldPos.x);
+            tempLine.setAttribute('y2', worldPos.y);
+        }
+
+        function updateConnectionsForNode(nodeElement) {
+            const nodeInfo = nodes.get(nodeElement.id);
+            if (!nodeInfo) return;
+            const center = getCenter(nodeElement);
+            nodeInfo.connections.forEach(conn => {
+                if (conn.from === nodeElement.id) { conn.line.setAttribute('x1', center.x); conn.line.setAttribute('y1', center.y); } 
+                else { conn.line.setAttribute('x2', center.x); conn.line.setAttribute('y2', center.y); }
+            });
+        }
+        
+        function createNode(type, label, x, y) {
+            const nodeElement = document.createElement('div');
+            nodeElement.className = `node ${type}`;
+            nodeElement.style.left = `${x}px`;
+            nodeElement.style.top = `${y}px`;
+            nodeElement.id = `node-${Date.now()}`;
+            nodeElement.innerHTML = `<div class="node-image-placeholder">Subir foto</div><span class="node-label">${label}</span>`;
+            
+            let clickTimer = null;
+
+            nodeElement.addEventListener('mousedown', (e) => startDrag(e, nodeElement));
+            
+            // CORRECTED CLICK/DBLCLICK LOGIC
+            nodeElement.addEventListener('click', () => {
+                // A small delay ensures the isDraggingNode flag is set correctly
+                setTimeout(() => {
+                    if (isDraggingNode || isConnecting) return;
+
+                    // Set a timer. If it's not cancelled by a double click, it's a single click.
+                    clickTimer = setTimeout(() => {
+                        selectedNodeForImage = nodeElement;
+                        imageUploadInput.click();
+                    }, 200);
+                }, 50);
+            });
+
+            nodeElement.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                clearTimeout(clickTimer); // Cancel the pending single click
+                onNodeDoubleClick(nodeElement); // Handle connection logic
+            });
+            
+            viewport.appendChild(nodeElement);
+            nodes.set(nodeElement.id, { element: nodeElement, connections: [] });
+        }
+        
+        function askNodeName(title, placeholder) {
+            modalTitle.textContent = title;
+            modalInput.placeholder = placeholder;
+            modalInput.value = '';
+            modal.style.display = 'flex';
+            modalInput.focus();
+            return new Promise(resolve => { modalResolve = resolve; });
+        }
+        modalConfirm.addEventListener('click', () => { if (modalInput.value.trim()) { modal.style.display = 'none'; if(modalResolve) modalResolve(modalInput.value.trim()); } });
+        modalCancel.addEventListener('click', () => { modal.style.display = 'none'; if(modalResolve) modalResolve(null); });
+
+        addSubskillBtn.addEventListener('click', async () => {
+            const label = await askNodeName("Añadir Sub-Habilidad Principal", "Ej: Ajedrez");
+            if (label) {
+                const worldCenter = screenToWorld({x: canvas.clientWidth/2, y: canvas.clientHeight/2});
+                createNode('subskill', label, worldCenter.x - 65, worldCenter.y - 65);
+                addSubskillBtn.disabled = true;
+            }
+        });
+
+        addSecondarySkillBtn.addEventListener('click', async () => {
+            const label = await askNodeName("Añadir Habilidad Secundaria", "Ej: Concentración");
+            if (label) {
+                const worldCenter = screenToWorld({x: canvas.clientWidth/2, y: canvas.clientHeight/2});
+                createNode('secondary-skill', label, worldCenter.x - 65, worldCenter.y);
+            }
+        });
+        
+        imageUploadInput.addEventListener('change', (event) => {
+            if (!event.target.files || !event.target.files[0] || !selectedNodeForImage) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let imageContainer = selectedNodeForImage.querySelector('.node-image-placeholder, .node-image');
+                if (imageContainer.classList.contains('node-image-placeholder')) {
+                    const newImg = document.createElement('img'); newImg.classList.add('node-image');
+                    imageContainer.replaceWith(newImg); newImg.src = e.target.result;
+                } else { imageContainer.src = e.target.result; }
+                imageUploadInput.value = '';
+            };
+            reader.readAsDataURL(event.target.files[0]);
+        });
+        
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cancelConnection(); });
+        
+        function initializeFixedNodes() {
+            const fixedData = [
+                { name: 'Enfoque', pos: { x: 200, y: 100 } }, { name: 'Disciplina', pos: { x: 1000, y: 100 } },
+                { name: 'Creatividad', pos: { x: 200, y: 800 } }, { name: 'Resiliencia', pos: { x: 1000, y: 800 } },
+                { name: 'Comunicación', pos: { x: 600, y: 50 } }, { name: 'Planificación', pos: { x: 600, y: 850 } },
+                { name: 'Análisis', pos: { x: 100, y: 450 } }, { name: 'Adaptabilidad', pos: { x: 1100, y: 450 } }
+            ];
+            fixedData.forEach(skill => createNode('fixed-skill', skill.name, skill.pos.x, skill.pos.y));
+        }
+        
+        initializeFixedNodes();
+        updateView();
+    });
+    </script>
+</body>
+</html>
