@@ -138,7 +138,7 @@
 
     <header>
         <h1>Mapa de Profundización</h1>
-        <p>Arrastra el fondo para moverte. Rueda del ratón para zoom. Doble clic para conectar.</p>
+        <p>Arrastra el fondo para moverte. Rueda de ratón para zoom. Un clic para conectar. Doble clic para subir imagen.</p>
     </header>
 
     <div id="controls">
@@ -153,7 +153,7 @@
                 <defs>
                     <marker id="arrowhead" markerWidth="10" markerHeight="7" 
                     refX="9" refY="3.5" orient="auto">
-                        <polygon points="0 0, 10 3.5, 0 7" />
+                        <polygon points="0 0, 10 3.5, 0 7" style="fill: var(--line-color);" />
                     </marker>
                 </defs>
             </svg>
@@ -226,7 +226,11 @@
             zoom = newZoom;
             updateView();
         });
-        canvas.addEventListener('dblclick', () => { if (isConnecting) cancelConnection(); });
+        canvas.addEventListener('click', (e) => {
+             if ((e.target === canvas || e.target === viewport) && isConnecting) {
+                cancelConnection();
+            }
+        });
 
         function getCenter(nodeElement) { return { x: nodeElement.offsetLeft + nodeElement.offsetWidth / 2, y: nodeElement.offsetTop + nodeElement.offsetHeight / 2 }; }
         function getNodeType(nodeElement) {
@@ -241,7 +245,7 @@
             setTimeout(() => { nodeElement.style.outlineColor = 'transparent'; }, 400);
         }
         
-        function onNodeDoubleClick(nodeElement) {
+        function handleNodeConnectionClick(nodeElement) {
             if (!isConnecting) {
                 const startType = getNodeType(nodeElement);
                 if (startType === 'secondary-skill') {
@@ -292,9 +296,7 @@
             line.setAttribute('class', 'connection-line');
             line.setAttribute('marker-end', 'url(#arrowhead)');
             
-            const startPos = getCenter(startNode), endPos = getCenter(endNode);
-            line.setAttribute('x1', startPos.x); line.setAttribute('y1', startPos.y);
-            line.setAttribute('x2', endPos.x); line.setAttribute('y2', endPos.y);
+            updateLinePosition(line, startNode, endNode);
             svgLayer.appendChild(line);
 
             const connInfo = { from: fromId, to: toId, line: line };
@@ -305,6 +307,15 @@
             if (isConnecting) {
                 cancelConnection();
             }
+        }
+        
+        function updateLinePosition(line, startNode, endNode) {
+             const startPos = getCenter(startNode);
+             const endPos = getCenter(endNode);
+             line.setAttribute('x1', startPos.x);
+             line.setAttribute('y1', startPos.y);
+             line.setAttribute('x2', endPos.x);
+             line.setAttribute('y2', endPos.y);
         }
 
         function cancelConnection() {
@@ -326,10 +337,10 @@
         function updateConnectionsForNode(nodeElement) {
             const nodeInfo = nodes.get(nodeElement.id);
             if (!nodeInfo) return;
-            const center = getCenter(nodeElement);
             nodeInfo.connections.forEach(conn => {
-                if (conn.from === nodeElement.id) { conn.line.setAttribute('x1', center.x); conn.line.setAttribute('y1', center.y); } 
-                else { conn.line.setAttribute('x2', center.x); conn.line.setAttribute('y2', center.y); }
+                const startNode = nodes.get(conn.from).element;
+                const endNode = nodes.get(conn.to).element;
+                updateLinePosition(conn.line, startNode, endNode);
             });
         }
         
@@ -341,20 +352,15 @@
             nodeElement.id = `node-${Date.now()}`;
             nodeElement.innerHTML = `<div class="node-image-placeholder">Subir foto</div><span class="node-label">${label}</span>`;
             
-            let isDragging = false;
-            let clickCount = 0;
-            let clickTimer = null;
+            let wasDragging = false;
             
             nodeElement.addEventListener('mousedown', (e) => {
                 e.stopPropagation();
-                let wasDragging = false;
+                wasDragging = false;
                 const dragThreshold = 5;
                 const startPos = { x: e.clientX, y: e.clientY };
                 
-                const initialNodePos = {
-                    left: nodeElement.offsetLeft,
-                    top: nodeElement.offsetTop
-                };
+                const initialNodePos = { left: nodeElement.offsetLeft, top: nodeElement.offsetTop };
 
                 function onMouseMove(moveEvent) {
                     const dx = moveEvent.clientX - startPos.x;
@@ -377,32 +383,28 @@
                 function onMouseUp() {
                     document.removeEventListener('mousemove', onMouseMove);
                     document.removeEventListener('mouseup', onMouseUp);
-                    
-                    nodeElement.classList.remove('is-dragging');
-                    
-                    if (wasDragging) return;
-
-                    // Handle click/dblclick
-                    clickCount++;
-                    if (clickCount === 1) {
-                        clickTimer = setTimeout(() => {
-                            clickCount = 0;
-                            // This is a single click
-                            if (!isConnecting) {
-                                selectedNodeForImage = nodeElement;
-                                imageUploadInput.click();
-                            }
-                        }, 250);
-                    } else if (clickCount === 2) {
-                        clearTimeout(clickTimer);
-                        clickCount = 0;
-                        // This is a double click
-                        onNodeDoubleClick(nodeElement);
-                    }
+                    // The 'is-dragging' class is removed here, but the 'wasDragging' flag persists
+                    // for the subsequent click event to check it.
+                    setTimeout(() => nodeElement.classList.remove('is-dragging'), 0);
                 }
 
                 document.addEventListener('mousemove', onMouseMove);
                 document.addEventListener('mouseup', onMouseUp, { once: true });
+            });
+
+            nodeElement.addEventListener('click', (e) => {
+                 e.stopPropagation();
+                 // A tiny timeout to ensure the wasDragging flag from the mouseup event is processed first.
+                 setTimeout(() => {
+                    if (wasDragging) return;
+                    handleNodeConnectionClick(nodeElement);
+                 }, 0);
+            });
+
+            nodeElement.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                selectedNodeForImage = nodeElement;
+                imageUploadInput.click();
             });
 
             viewport.appendChild(nodeElement);
