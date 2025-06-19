@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Profundización de Habilidades</title>
     <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" xintegrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -49,6 +49,7 @@
             background-color: #f5f5f5;
             overflow: hidden;
             cursor: grab;
+            touch-action: none; /* Prevents default browser actions on touch */
         }
         #canvas-container:active { cursor: grabbing; }
         
@@ -153,12 +154,14 @@
             header h1 { font-size: 1.25rem; }
             header p { font-size: 0.8rem; }
             #controls { flex-direction: column; gap: 0.5rem; padding: 0.75rem; }
-            #canvas-container { height: calc(100% - 190px); } /* Adjust height for stacked buttons */
+            #canvas-container { height: calc(100vh - 175px); } /* Adjusted height for stacked buttons */
             .modal-content { padding: 1.5rem; }
-            .node { width: 110px; height: 110px; }
-            .node.fixed-skill { width: 120px; height: 120px; }
-            .node-label { font-size: 12px; }
-            .node.fixed-skill .node-label { font-size: 14px; }
+            .node { width: 100px; height: 100px; }
+            .node.fixed-skill { width: 100px; height: 100px; }
+            .node-icon { font-size: 30px; }
+            .node-image, .node-image-placeholder, .node-icon { width: 40px; height: 40px; }
+            .node-label { font-size: 11px; }
+            .node.fixed-skill .node-label { font-size: 12px; font-weight: bold; }
         }
 
     </style>
@@ -167,7 +170,7 @@
 
     <header>
         <h1>Mapa de Profundización</h1>
-        <p>Un clic para conectar. Doble clic en nodo para acción especial.</p>
+        <p>Un clic para conectar. Doble clic para acción especial.</p>
     </header>
 
     <div id="controls">
@@ -247,7 +250,8 @@
         let mainSubSkillNode = null;
         let isConnecting = false, connectionStartNode = null, tempLine = null;
         
-        let pan = { x: 0, y: 0 }, zoom = 1;
+        const isMobileInitial = window.innerWidth <= 768;
+        let pan = { x: 0, y: 0 }, zoom = isMobileInitial ? 0.65 : 0.75;
 
         const ICONS = [
             'fa-solid fa-brain', 'fa-solid fa-lightbulb', 'fa-solid fa-crosshairs', 'fa-solid fa-person-running',
@@ -279,6 +283,7 @@
         }
 
         function handlePan(startEvent) {
+             startEvent.preventDefault();
              const isTouchEvent = !!startEvent.touches;
              const startPoint = isTouchEvent ? startEvent.touches[0] : startEvent;
              const panStart = { x: startPoint.clientX - pan.x, y: startPoint.clientY - pan.y };
@@ -341,8 +346,7 @@
             tempLine.style.strokeDasharray = '5, 5';
             tempLine.setAttribute('marker-end', 'url(#arrowhead)');
             svgLayer.appendChild(tempLine);
-            viewport.addEventListener('mousemove', followCursorWithTransform);
-            viewport.addEventListener('touchmove', followCursorWithTransform);
+            viewport.addEventListener('pointermove', followCursorWithTransform);
         }
         
         function connectNodes(startNode, endNode) {
@@ -394,14 +398,13 @@
             connectionStartNode = null;
             if (tempLine) tempLine.remove();
             tempLine = null;
-            viewport.removeEventListener('mousemove', followCursorWithTransform);
-            viewport.removeEventListener('touchmove', followCursorWithTransform);
+            viewport.removeEventListener('pointermove', followCursorWithTransform);
         }
 
         function followCursorWithTransform(e) {
             if (!isConnecting || !tempLine) return;
-            const event = e.touches ? e.touches[0] : e;
-            const worldPos = screenToWorld({ x: event.clientX, y: event.clientY });
+            e.preventDefault();
+            const worldPos = screenToWorld({ x: e.clientX, y: e.clientY });
             tempLine.setAttribute('x2', worldPos.x);
             tempLine.setAttribute('y2', worldPos.y);
         }
@@ -432,24 +435,19 @@
 
             nodeElement.innerHTML = `${contentHtml}<span class="node-label">${label}</span>`;
             
+            let clickTimer = null;
             let wasDragging = false;
             
-            nodeElement.addEventListener('mousedown', (e) => handlePointerDown(e));
-            nodeElement.addEventListener('touchstart', (e) => handlePointerDown(e));
-
-            function handlePointerDown(e) {
+            nodeElement.addEventListener('pointerdown', (e) => {
                 e.stopPropagation();
                 wasDragging = false;
-                const isTouchEvent = !!e.touches;
-                const startPoint = isTouchEvent ? e.touches[0] : e;
                 const dragThreshold = 5;
-                const startPos = { x: startPoint.clientX, y: startPoint.clientY };
+                const startPos = { x: e.clientX, y: e.clientY };
                 const initialNodePos = { left: nodeElement.offsetLeft, top: nodeElement.offsetTop };
 
                 function onPointerMove(moveEvent) {
-                    const movePoint = isTouchEvent ? moveEvent.touches[0] : moveEvent;
-                    const dx = movePoint.clientX - startPos.x;
-                    const dy = movePoint.clientY - startPos.y;
+                    const dx = moveEvent.clientX - startPos.x;
+                    const dy = moveEvent.clientY - startPos.y;
                     if (!wasDragging && (Math.abs(dx) > dragThreshold || Math.abs(dy) > dragThreshold)) {
                         wasDragging = true;
                         nodeElement.classList.add('is-dragging');
@@ -463,29 +461,31 @@
                     }
                 }
                 function onPointerUp() {
-                    document.removeEventListener(isTouchEvent ? 'touchmove' : 'mousemove', onPointerMove);
+                    document.removeEventListener('pointermove', onPointerMove);
                     nodeElement.classList.remove('is-dragging');
                 }
-                document.addEventListener(isTouchEvent ? 'touchmove' : 'mousemove', onPointerMove);
-                document.addEventListener(isTouchEvent ? 'touchend' : 'mouseup', onPointerUp, { once: true });
-            }
-
+                document.addEventListener('pointermove', onPointerMove);
+                document.addEventListener('pointerup', onPointerUp, { once: true });
+            });
+            
             nodeElement.addEventListener('click', (e) => {
                  e.stopPropagation();
-                 setTimeout(() => {
+                 clearTimeout(clickTimer);
+                 clickTimer = setTimeout(() => {
                     if (wasDragging) return;
-                    if (!isConnecting) {
+                     if (!isConnecting) {
                         const startType = getNodeType(nodeElement);
                         if (startType === 'secondary-skill') return;
                         startConnectionMode(nodeElement);
                     } else { 
                         connectNodes(connectionStartNode, nodeElement);
                     }
-                 }, 50);
+                 }, 200);
             });
 
             nodeElement.addEventListener('dblclick', (e) => {
                 e.stopPropagation();
+                clearTimeout(clickTimer);
                 const nodeType = getNodeType(nodeElement);
                 if (nodeType === 'subskill') {
                     selectedNodeForImage = nodeElement;
@@ -616,47 +616,76 @@
         
         function initializeFixedNodes() {
             const fixedNodeNames = ['Enfoque', 'Disciplina', 'Creatividad', 'Resiliencia', 'Comunicación', 'Planificación', 'Análisis', 'Adaptabilidad'];
-            
             const isMobile = window.innerWidth <= 768;
-            const fixedNodeSize = isMobile ? 120 : 140;
-            const margin = isMobile ? 20 : 100;
+            const nodeSize = isMobile ? 100 : 140;
+            
+            let positions;
 
-            const positions = [
-                { x: margin, y: margin }, // Top-left
-                { x: viewport.clientWidth - margin - fixedNodeSize, y: margin }, // Top-right
-                { x: viewport.clientWidth / 2 - fixedNodeSize / 2, y: margin }, // Top-center
-                { x: viewport.clientWidth / 2 - fixedNodeSize / 2, y: viewport.clientHeight - margin - fixedNodeSize }, // Bottom-center
-                { x: margin, y: viewport.clientHeight - margin - fixedNodeSize }, // Bottom-left
-                { x: viewport.clientWidth - margin - fixedNodeSize, y: viewport.clientHeight - margin - fixedNodeSize }, // Bottom-right
-                { x: margin, y: viewport.clientHeight/2 - fixedNodeSize / 2 }, // Middle-left
-                { x: viewport.clientWidth - margin - fixedNodeSize, y: viewport.clientHeight/2 - fixedNodeSize / 2 } // Middle-right
-            ];
-
-            // Assign names to positions to keep them consistent
-            const positionMap = {
-                'Planificación': positions[2],
-                'Enfoque': positions[0],
-                'Análisis': positions[6],
-                'Creatividad': positions[4],
-                'Disciplina': positions[1],
-                'Adaptabilidad': positions[7],
-                'Resiliencia': positions[5],
-                'Comunicación': positions[3]
-            };
+            if (isMobile) {
+                const marginX = 15;
+                const marginY = 20;
+                const col1X = marginX;
+                const col2X = viewport.clientWidth - marginX - nodeSize;
+                const row1Y = marginY;
+                const row2Y = row1Y + nodeSize + marginY / 2;
+                const row3Y = row2Y + nodeSize + marginY / 2;
+                const row4Y = row3Y + nodeSize + marginY / 2;
+                positions = {
+                    'Planificación': { x: col1X, y: row1Y }, 'Disciplina': { x: col2X, y: row1Y },
+                    'Enfoque': { x: col1X, y: row2Y }, 'Adaptabilidad': { x: col2X, y: row2Y },
+                    'Análisis': { x: col1X, y: row3Y }, 'Resiliencia': { x: col2X, y: row3Y },
+                    'Creatividad': { x: col1X, y: row4Y }, 'Comunicación': { x: col2X, y: row4Y },
+                };
+            } else {
+                 const marginX = 200;
+                 const marginY = 120;
+                 positions = {
+                    'Planificación': { x: viewport.clientWidth / 2 - nodeSize / 2, y: marginY },
+                    'Enfoque':       { x: marginX, y: marginY + 180 },
+                    'Análisis':      { x: marginX, y: viewport.clientHeight - marginY - nodeSize - 180},
+                    'Creatividad':   { x: viewport.clientWidth / 2 - nodeSize * 2, y: viewport.clientHeight - marginY - nodeSize },
+                    'Disciplina':    { x: viewport.clientWidth - marginX - nodeSize, y: marginY + 180 },
+                    'Adaptabilidad': { x: viewport.clientWidth - marginX - nodeSize, y: viewport.clientHeight - marginY - nodeSize - 180 },
+                    'Resiliencia':   { x: viewport.clientWidth / 2 + nodeSize, y: viewport.clientHeight - marginY - nodeSize},
+                    'Comunicación':  { x: viewport.clientWidth / 2 - nodeSize / 2, y: viewport.clientHeight - marginY - nodeSize - 180}
+                 };
+            }
 
             fixedNodeNames.forEach(name => {
-                const pos = positionMap[name];
+                const pos = positions[name];
                 if(pos) createNode('fixed-skill', {label: name}, pos.x, pos.y);
             });
         }
         
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                document.querySelectorAll('.fixed-skill').forEach(n => n.remove());
+                connections.forEach(conn => {
+                    if (conn.line) conn.line.remove();
+                });
+                connections.clear();
+                
+                // Reset connections on node objects
+                nodes.forEach(nodeInfo => {
+                    if(getNodeType(nodeInfo.element) !== 'fixed-skill') {
+                       nodeInfo.connections = [];
+                    }
+                });
+
+
+                initializeFixedNodes();
+                 
+                if (mainSubSkillNode) {
+                    const secondaryNodes = Array.from(nodes.values()).filter(n => getNodeType(n.element) === 'secondary-skill');
+                    secondaryNodes.forEach(secNode => connectNodes(mainSubSkillNode, secNode.element));
+                }
+            }, 250);
+        });
+
         initializeFixedNodes();
         updateView();
-        window.addEventListener('resize', () => {
-            // This is a simple solution. A more complex one would reposition nodes instead of clearing them.
-            document.querySelectorAll('.fixed-skill').forEach(n => n.remove());
-            initializeFixedNodes();
-        });
     });
     </script>
 </body>
