@@ -26,6 +26,7 @@
             background-color: var(--light-gray);
             color: var(--text-color);
             overflow: hidden;
+            height: 100vh;
         }
 
         header {
@@ -39,12 +40,12 @@
         }
 
         header h1 { margin: 0; font-size: 1.75rem; color: #000; }
-        header p { margin: 0.25rem 0 0; color: #6c757d; }
+        header p { margin: 0.25rem 0 0; font-size: 0.9rem; color: #6c757d; }
 
         #canvas-container {
             position: relative;
             width: 100vw;
-            height: calc(100vh - 160px); 
+            height: calc(100% - 145px); 
             background-color: #f5f5f5;
             overflow: hidden;
             cursor: grab;
@@ -69,15 +70,8 @@
             pointer-events: none;
         }
 
-        .connection-line {
-            stroke: var(--line-color);
-            stroke-width: 2px;
-            transition: stroke 0.2s;
-        }
-        
-        #arrowhead {
-            fill: var(--line-color);
-        }
+        .connection-line { stroke: var(--line-color); stroke-width: 2px; transition: stroke 0.2s; }
+        #arrowhead { fill: var(--line-color); }
 
         .node {
             position: absolute;
@@ -93,7 +87,7 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
             transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, outline 0.2s ease;
             user-select: none;
-            outline: 3px solid transparent; /* Para la animación de error */
+            outline: 3px solid transparent;
         }
         
         .node.is-dragging { cursor: grabbing; transform: scale(1.05); box-shadow: 0 8px 20px rgba(0,0,0,0.15); z-index: 10; }
@@ -105,22 +99,9 @@
             pointer-events: none; 
         }
         
-        .node-icon {
-            font-size: 40px;
-            color: #333;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .node-image, .node-image-placeholder {
-            border-radius: 50%; 
-            object-fit: cover; 
-            border: 2px solid rgba(0,0,0,0.05);
-        }
-
+        .node-icon { font-size: 40px; color: #333; display: flex; align-items: center; justify-content: center; }
+        .node-image, .node-image-placeholder { border-radius: 50%; object-fit: cover; border: 2px solid rgba(0,0,0,0.05); }
         .node-image-placeholder { background: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #6c757d; }
-
         .node-label { font-size: 14px; font-weight: 600; pointer-events: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .node.subskill { background-color: #d1e7dd; border-color: #a3cfbb; }
@@ -145,10 +126,9 @@
 
         #controls input[type="file"] { display: none; }
 
-        /* Modal Styling */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center; }
         .modal-content { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: 90%; max-width: 500px; text-align: left; max-height: 90vh; overflow-y: auto; }
-        .modal-content h2 { margin-top: 0; }
+        .modal-content h2 { margin-top: 0; font-size: 1.5rem; }
         .modal-content input { width: 100%; padding: 10px; margin-top: 1rem; margin-bottom: 1.5rem; border: 1px solid #ccc; border-radius: 5px; font-size: 1rem; box-sizing: border-box; }
         
         #category-info-modal .modal-content h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; }
@@ -166,6 +146,20 @@
         .modal-buttons button { padding: 10px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: 500;}
         .modal-close-btn { background: #e5e5ea; }
         #modal-confirm { background: var(--primary-blue); color: white; }
+        
+        /* Media Queries for Responsiveness */
+        @media (max-width: 768px) {
+            header { padding: 0.75rem 1rem; }
+            header h1 { font-size: 1.25rem; }
+            header p { font-size: 0.8rem; }
+            #controls { flex-direction: column; gap: 0.5rem; padding: 0.75rem; }
+            #canvas-container { height: calc(100% - 190px); } /* Adjust height for stacked buttons */
+            .modal-content { padding: 1.5rem; }
+            .node { width: 110px; height: 110px; }
+            .node.fixed-skill { width: 120px; height: 120px; }
+            .node-label { font-size: 12px; }
+            .node.fixed-skill .node-label { font-size: 14px; }
+        }
 
     </style>
 </head>
@@ -210,7 +204,6 @@
         </div>
     </div>
     
-    <!-- New Modal for Category Info -->
     <div id="category-info-modal" class="modal-overlay">
         <div class="modal-content">
             <h2 id="category-modal-title"></h2>
@@ -266,102 +259,14 @@
         ];
 
         const CATEGORY_CONTENT = {
-            'Planificación': {
-                title: 'Funciones Ejecutivas (FE)',
-                description: 'Las funciones ejecutivas son el director de orquesta de tu mente. Coordina la planificación, la flexibilidad y la toma de decisiones, permitiéndote alcanzar objetivos incluso en situaciones imprevistas.',
-                training: {
-                    title: 'Entrenamiento Lúdico',
-                    points: [
-                        'Planifica con juego: Diseña el menú de la semana o crea una ruta del tesoro en el supermercado.',
-                        'Desafíos cotidianos: Organiza pequeños proyectos o retos diarios que involucren selección de estrategias, control de impulsos y autorregulación.'
-                    ],
-                    conclusion: 'Con estas actividades, conviertes la rutina en una aventura de superpoderes mentales.'
-                }
-            },
-            'Enfoque': {
-                title: 'Atención',
-                description: 'La atención es ese flash que te permite centrarte en lo esencial en medio del bullicio diario. Con el tiempo, mantener el enfoque puede ser un desafío, pero es posible entrenarlo de forma divertida.',
-                training: {
-                    title: 'Entrenamiento Lúdico',
-                    points: [
-                        'Explora tu entorno: Durante un paseo, desafíate a identificar detalles: colores, sonidos o texturas.',
-                        'Juego sensorial: Alterna tareas para captar pistas visuales y auditivas en entornos naturales en lugar de depender solo de instrucciones verbales.'
-                    ],
-                    conclusion: 'De esta manera, transformarás una simple caminata en una experiencia sensorial inolvidable.'
-                }
-            },
-            'Análisis': {
-                title: 'Memoria de Trabajo',
-                description: 'Tu memoria de trabajo es como la mesa de un chef, donde se mantienen los ingredientes necesarios para preparar una buena receta mental.',
-                training: {
-                    title: 'Entrenamiento Lúdico',
-                    points: [
-                        'Matemáticas con sabor: Practica cálculos mentales usando caramelos o monedas como “ingredientes”.',
-                        'Recetas y retos: Al cocinar, desafíate a recordar y combinar ingredientes de forma creativa, estimulando la retención y manipulación de información.'
-                    ],
-                    conclusion: 'Así, cada tarea diaria se convierte en un juego de organización y creatividad.'
-                }
-            },
-            'Disciplina': {
-                title: 'Control Inhibitorio',
-                description: 'Este es el freno que impide que los impulsos tomen el control, permitiéndote actuar con mesura y claridad.',
-                training: {
-                    title: 'Entrenamiento Lúdico',
-                    points: [
-                        'Desafío del autocontrol: Cuando sientas la tentación de actuar impulsivamente (como revisar el móvil de inmediato), tómate un instante para respirar y pensar.',
-                        'Pequeños juegos: Practica detener respuestas automáticas en situaciones cotidianas, fortaleciendo esa capacidad para reflexionar antes de actuar.'
-                    ],
-                    conclusion: 'Practicar el control inhibitorio te ayudará a mantener la calma en medio del caos.'
-                }
-            },
-            'Adaptabilidad': {
-                title: 'Flexibilidad Cognitiva',
-                description: 'La flexibilidad cognitiva es tu capacidad para adaptarte a nuevas situaciones y cambiar de estrategia cuando es necesario.',
-                training: {
-                    title: 'Entrenamiento Lúdico',
-                    points: [
-                        'Rutas alternativas: Cambia de camino al trabajo o intenta una actividad inesperada en tu rutina diaria.',
-                        'Desafíos contextuales: Enfrenta pequeños retos, como improvisar soluciones creativas en situaciones cotidianas (subir una rampa o sortear un bordillo), y descubre nuevas formas de ver el mundo.'
-                    ],
-                    conclusion: 'Cada variación en la rutina es una oportunidad para ejercitar tu mente y hacerlo con diversión.'
-                }
-            },
-             'Creatividad': {
-                title: 'Lágrimas y Sudor (Plasticidad Cerebral)',
-                description: 'Este concepto celebra la capacidad del cerebro para remodelarse y aprender continuamente a partir de experiencias ricas y significativas.',
-                training: {
-                    title: 'Entrenamiento Lúdico',
-                    points: [
-                        'Explora y crea: Sumérgete en actividades artísticas, baila al ritmo de una nueva melodía o aprende algo totalmente distinto de lo habitual.',
-                        'Vive plenamente: Busca experiencias auténticas que despierten emociones: cada risa, cada desafío y cada logro potencian las conexiones neuronales.'
-                    ],
-                    conclusion: 'Tras cada experiencia, tu cerebro se refresca, listo para aprender algo nuevo.'
-                }
-            },
-            'Resiliencia': {
-                title: 'Metacognición y Autorregulación del Aprendizaje',
-                description: 'Esta habilidad te invita a ser el director de tu propio aprendizaje, aprendiendo a reconocer y mejorar tus propios procesos mentales.',
-                training: {
-                    title: 'Entrenamiento Lúdico',
-                    points: [
-                        'Diario mental: Reflexiona sobre tus métodos, identifica qué te ayuda y qué no, y rediseña tus estrategias de aprendizaje de forma creativa.',
-                        'Auto-retroalimentación: Celebra cada pequeño avance y ajusta tus desafíos diarios para que aprender sea un proceso dinámico y personal.'
-                    ],
-                    conclusion: 'Transforma cada día en un laboratorio de autodescubrimiento y crecimiento.'
-                }
-            },
-            'Comunicación': {
-                title: 'Habilidades Socio-Emocionales (Empatía y Regulación Emocional)',
-                description: 'Estas habilidades son las claves para conectar de manera auténtica con los demás, gestionando tus emociones e interpretando las de los que te rodean.',
-                training: {
-                    title: 'Entrenamiento Lúdico',
-                    points: [
-                        'Juego del espejo: Observa y reflexiona sobre tus reacciones en conversaciones cotidianas. Practica desde dar un “gracias” sincero y pedir disculpas, hasta resolver malentendidos de forma asertiva.',
-                        'Reto emocional: Incrementa gradualmente la complejidad de las interacciones sociales, pasando de situaciones básicas a escenarios más desafiantes, mejorando así tu inteligencia emocional.'
-                    ],
-                    conclusion: 'Al entrenar estas habilidades, cada interacción se convierte en un juego de empatía y autoconciencia.'
-                }
-            }
+            'Planificación': { title: 'Funciones Ejecutivas (FE)', description: 'Las funciones ejecutivas son el director de orquesta de tu mente. Coordina la planificación, la flexibilidad y la toma de decisiones, permitiéndote alcanzar objetivos incluso en situaciones imprevistas.', training: { title: 'Entrenamiento Lúdico', points: ['Planifica con juego: Diseña el menú de la semana o crea una ruta del tesoro en el supermercado.','Desafíos cotidianos: Organiza pequeños proyectos o retos diarios que involucren selección de estrategias, control de impulsos y autorregulación.'], conclusion: 'Con estas actividades, conviertes la rutina en una aventura de superpoderes mentales.'}},
+            'Enfoque': { title: 'Atención', description: 'La atención es ese flash que te permite centrarte en lo esencial en medio del bullicio diario. Con el tiempo, mantener el enfoque puede ser un desafío, pero es posible entrenarlo de forma divertida.', training: { title: 'Entrenamiento Lúdico', points: ['Explora tu entorno: Durante un paseo, desafíate a identificar detalles: colores, sonidos o texturas.','Juego sensorial: Alterna tareas para captar pistas visuales y auditivas en entornos naturales en lugar de depender solo de instrucciones verbales.'], conclusion: 'De esta manera, transformarás una simple caminata en una experiencia sensorial inolvidable.'}},
+            'Análisis': { title: 'Memoria de Trabajo', description: 'Tu memoria de trabajo es como la mesa de un chef, donde se mantienen los ingredientes necesarios para preparar una buena receta mental.', training: { title: 'Entrenamiento Lúdico', points: ['Matemáticas con sabor: Practica cálculos mentales usando caramelos o monedas como “ingredientes”.','Recetas y retos: Al cocinar, desafíate a recordar y combinar ingredientes de forma creativa, estimulando la retención y manipulación de información.'], conclusion: 'Así, cada tarea diaria se convierte en un juego de organización y creatividad.'}},
+            'Disciplina': { title: 'Control Inhibitorio', description: 'Este es el freno que impide que los impulsos tomen el control, permitiéndote actuar con mesura y claridad.', training: { title: 'Entrenamiento Lúdico', points: ['Desafío del autocontrol: Cuando sientas la tentación de actuar impulsivamente (como revisar el móvil de inmediato), tómate un instante para respirar y pensar.','Pequeños juegos: Practica detener respuestas automáticas en situaciones cotidianas, fortaleciendo esa capacidad para reflexionar antes de actuar.'], conclusion: 'Practicar el control inhibitorio te ayudará a mantener la calma en medio del caos.'}},
+            'Adaptabilidad': { title: 'Flexibilidad Cognitiva', description: 'La flexibilidad cognitiva es tu capacidad para adaptarte a nuevas situaciones y cambiar de estrategia cuando es necesario.', training: { title: 'Entrenamiento Lúdico', points: ['Rutas alternativas: Cambia de camino al trabajo o intenta una actividad inesperada en tu rutina diaria.','Desafíos contextuales: Enfrenta pequeños retos, como improvisar soluciones creativas en situaciones cotidianas (subir una rampa o sortear un bordillo), y descubre nuevas formas de ver el mundo.'], conclusion: 'Cada variación en la rutina es una oportunidad para ejercitar tu mente y hacerlo con diversión.'}},
+            'Creatividad': { title: 'Lágrimas y Sudor (Plasticidad Cerebral)', description: 'Este concepto celebra la capacidad del cerebro para remodelarse y aprender continuamente a partir de experiencias ricas y significativas.', training: { title: 'Entrenamiento Lúdico', points: ['Explora y crea: Sumérgete en actividades artísticas, baila al ritmo de una nueva melodía o aprende algo totalmente distinto de lo habitual.','Vive plenamente: Busca experiencias auténticas que despierten emociones: cada risa, cada desafío y cada logro potencian las conexiones neuronales.'], conclusion: 'Tras cada experiencia, tu cerebro se refresca, listo para aprender algo nuevo.'}},
+            'Resiliencia': { title: 'Metacognición y Autorregulación', description: 'Esta habilidad te invita a ser el director de tu propio aprendizaje, aprendiendo a reconocer y mejorar tus propios procesos mentales.', training: { title: 'Entrenamiento Lúdico', points: ['Diario mental: Reflexiona sobre tus métodos, identifica qué te ayuda y qué no, y rediseña tus estrategias de aprendizaje de forma creativa.','Auto-retroalimentación: Celebra cada pequeño avance y ajusta tus desafíos diarios para que aprender sea un proceso dinámico y personal.'], conclusion: 'Transforma cada día en un laboratorio de autodescubrimiento y crecimiento.'}},
+            'Comunicación': { title: 'Habilidades Socio-Emocionales', description: 'Estas habilidades son las claves para conectar de manera auténtica con los demás, gestionando tus emociones e interpretando las de los que te rodean.', training: { title: 'Entrenamiento Lúdico', points: ['Juego del espejo: Observa y reflexiona sobre tus reacciones en conversaciones cotidianas. Practica desde dar un “gracias” sincero y pedir disculpas, hasta resolver malentendidos de forma asertiva.','Reto emocional: Incrementa gradualmente la complejidad de las interacciones sociales, pasando de situaciones básicas a escenarios más desafiantes, mejorando así tu inteligencia emocional.'], conclusion: 'Al entrenar estas habilidades, cada interacción se convierte en un juego de empatía y autoconciencia.'}}
         };
         
         function updateView() { viewport.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`; }
@@ -373,31 +278,32 @@
             };
         }
 
-        canvas.addEventListener('mousedown', (e) => {
-            if (e.target === canvas || e.target === viewport) {
-                let isPanning = true;
-                const panStart = { x: e.clientX - pan.x, y: e.clientY - pan.y };
-                canvas.style.cursor = 'grabbing';
-                
-                function onMouseMove(moveEvent) {
-                    if (isPanning) {
-                       pan.x = moveEvent.clientX - panStart.x;
-                       pan.y = moveEvent.clientY - panStart.y;
-                       updateView();
-                    }
-                }
-                
-                function onMouseUp() {
-                    isPanning = false;
-                    canvas.style.cursor = 'grab';
-                    document.removeEventListener('mousemove', onMouseMove);
-                    document.removeEventListener('mouseup', onMouseUp);
-                }
-                
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
-            }
-        });
+        function handlePan(startEvent) {
+             const isTouchEvent = !!startEvent.touches;
+             const startPoint = isTouchEvent ? startEvent.touches[0] : startEvent;
+             const panStart = { x: startPoint.clientX - pan.x, y: startPoint.clientY - pan.y };
+             canvas.style.cursor = 'grabbing';
+             
+             function onPointerMove(moveEvent) {
+                const movePoint = isTouchEvent ? moveEvent.touches[0] : moveEvent;
+                pan.x = movePoint.clientX - panStart.x;
+                pan.y = movePoint.clientY - panStart.y;
+                updateView();
+             }
+             
+             function onPointerUp() {
+                 canvas.style.cursor = 'grab';
+                 document.removeEventListener(isTouchEvent ? 'touchmove' : 'mousemove', onPointerMove);
+                 document.removeEventListener(isTouchEvent ? 'touchend' : 'mouseup', onPointerUp);
+             }
+             
+             document.addEventListener(isTouchEvent ? 'touchmove' : 'mousemove', onPointerMove);
+             document.addEventListener(isTouchEvent ? 'touchend' : 'mouseup', onPointerUp);
+        }
+        
+        canvas.addEventListener('mousedown', (e) => { if (e.target === canvas || e.target === viewport) handlePan(e); });
+        canvas.addEventListener('touchstart', (e) => { if (e.target === canvas || e.target === viewport) handlePan(e); });
+        
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const minZoom = 0.2, maxZoom = 2.5;
@@ -436,6 +342,7 @@
             tempLine.setAttribute('marker-end', 'url(#arrowhead)');
             svgLayer.appendChild(tempLine);
             viewport.addEventListener('mousemove', followCursorWithTransform);
+            viewport.addEventListener('touchmove', followCursorWithTransform);
         }
         
         function connectNodes(startNode, endNode) {
@@ -488,11 +395,13 @@
             if (tempLine) tempLine.remove();
             tempLine = null;
             viewport.removeEventListener('mousemove', followCursorWithTransform);
+            viewport.removeEventListener('touchmove', followCursorWithTransform);
         }
 
         function followCursorWithTransform(e) {
             if (!isConnecting || !tempLine) return;
-            const worldPos = screenToWorld({ x: e.clientX, y: e.clientY });
+            const event = e.touches ? e.touches[0] : e;
+            const worldPos = screenToWorld({ x: event.clientX, y: event.clientY });
             tempLine.setAttribute('x2', worldPos.x);
             tempLine.setAttribute('y2', worldPos.y);
         }
@@ -525,16 +434,22 @@
             
             let wasDragging = false;
             
-            nodeElement.addEventListener('mousedown', (e) => {
+            nodeElement.addEventListener('mousedown', (e) => handlePointerDown(e));
+            nodeElement.addEventListener('touchstart', (e) => handlePointerDown(e));
+
+            function handlePointerDown(e) {
                 e.stopPropagation();
                 wasDragging = false;
+                const isTouchEvent = !!e.touches;
+                const startPoint = isTouchEvent ? e.touches[0] : e;
                 const dragThreshold = 5;
-                const startPos = { x: e.clientX, y: e.clientY };
+                const startPos = { x: startPoint.clientX, y: startPoint.clientY };
                 const initialNodePos = { left: nodeElement.offsetLeft, top: nodeElement.offsetTop };
 
-                function onMouseMove(moveEvent) {
-                    const dx = moveEvent.clientX - startPos.x;
-                    const dy = moveEvent.clientY - startPos.y;
+                function onPointerMove(moveEvent) {
+                    const movePoint = isTouchEvent ? moveEvent.touches[0] : moveEvent;
+                    const dx = movePoint.clientX - startPos.x;
+                    const dy = movePoint.clientY - startPos.y;
                     if (!wasDragging && (Math.abs(dx) > dragThreshold || Math.abs(dy) > dragThreshold)) {
                         wasDragging = true;
                         nodeElement.classList.add('is-dragging');
@@ -547,13 +462,13 @@
                         updateConnectionsForNode(nodeElement);
                     }
                 }
-                function onMouseUp() {
-                    document.removeEventListener('mousemove', onMouseMove);
+                function onPointerUp() {
+                    document.removeEventListener(isTouchEvent ? 'touchmove' : 'mousemove', onPointerMove);
                     nodeElement.classList.remove('is-dragging');
                 }
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp, { once: true });
-            });
+                document.addEventListener(isTouchEvent ? 'touchmove' : 'mousemove', onPointerMove);
+                document.addEventListener(isTouchEvent ? 'touchend' : 'mouseup', onPointerUp, { once: true });
+            }
 
             nodeElement.addEventListener('click', (e) => {
                  e.stopPropagation();
@@ -561,10 +476,7 @@
                     if (wasDragging) return;
                     if (!isConnecting) {
                         const startType = getNodeType(nodeElement);
-                        if (startType === 'secondary-skill') {
-                            flashNodeError(nodeElement);
-                            return;
-                        }
+                        if (startType === 'secondary-skill') return;
                         startConnectionMode(nodeElement);
                     } else { 
                         connectNodes(connectionStartNode, nodeElement);
@@ -703,23 +615,48 @@
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cancelConnection(); });
         
         function initializeFixedNodes() {
-            const fixedData = [
-                'Enfoque', 'Disciplina', 'Creatividad', 'Resiliencia', 
-                'Comunicación', 'Planificación', 'Análisis', 'Adaptabilidad'
+            const fixedNodeNames = ['Enfoque', 'Disciplina', 'Creatividad', 'Resiliencia', 'Comunicación', 'Planificación', 'Análisis', 'Adaptabilidad'];
+            
+            const isMobile = window.innerWidth <= 768;
+            const fixedNodeSize = isMobile ? 120 : 140;
+            const margin = isMobile ? 20 : 100;
+
+            const positions = [
+                { x: margin, y: margin }, // Top-left
+                { x: viewport.clientWidth - margin - fixedNodeSize, y: margin }, // Top-right
+                { x: viewport.clientWidth / 2 - fixedNodeSize / 2, y: margin }, // Top-center
+                { x: viewport.clientWidth / 2 - fixedNodeSize / 2, y: viewport.clientHeight - margin - fixedNodeSize }, // Bottom-center
+                { x: margin, y: viewport.clientHeight - margin - fixedNodeSize }, // Bottom-left
+                { x: viewport.clientWidth - margin - fixedNodeSize, y: viewport.clientHeight - margin - fixedNodeSize }, // Bottom-right
+                { x: margin, y: viewport.clientHeight/2 - fixedNodeSize / 2 }, // Middle-left
+                { x: viewport.clientWidth - margin - fixedNodeSize, y: viewport.clientHeight/2 - fixedNodeSize / 2 } // Middle-right
             ];
-             const positions = [
-                { x: 200, y: 100 }, { x: 1000, y: 100 },
-                { x: 200, y: 800 }, { x: 1000, y: 800 },
-                { x: 600, y: 50 }, { x: 600, y: 850 },
-                { x: 100, y: 450 }, { x: 1100, y: 450 }
-            ];
-            fixedData.forEach((name, i) => {
-                createNode('fixed-skill', {label: name}, positions[i].x, positions[i].y);
+
+            // Assign names to positions to keep them consistent
+            const positionMap = {
+                'Planificación': positions[2],
+                'Enfoque': positions[0],
+                'Análisis': positions[6],
+                'Creatividad': positions[4],
+                'Disciplina': positions[1],
+                'Adaptabilidad': positions[7],
+                'Resiliencia': positions[5],
+                'Comunicación': positions[3]
+            };
+
+            fixedNodeNames.forEach(name => {
+                const pos = positionMap[name];
+                if(pos) createNode('fixed-skill', {label: name}, pos.x, pos.y);
             });
         }
         
         initializeFixedNodes();
         updateView();
+        window.addEventListener('resize', () => {
+            // This is a simple solution. A more complex one would reposition nodes instead of clearing them.
+            document.querySelectorAll('.fixed-skill').forEach(n => n.remove());
+            initializeFixedNodes();
+        });
     });
     </script>
 </body>
